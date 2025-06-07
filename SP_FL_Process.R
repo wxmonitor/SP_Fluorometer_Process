@@ -10,15 +10,15 @@
 
 ### Enter filenames to be processed
 ### Files must be located in your working directory
-### Run getwd() to determind working directory
+### Run getwd() to determine working directory if unknown
 
-# Ship's position data file. Must be a .txt file containing NMEA sentences
+# Ship's position data file. Must be a .txt file containing NMEA sentences $GPZDA and $GPGGA
 
 positionFile <- "SP_GPS_240509.cap"
 
-# Fluorometry data file. Must be a .txt file containing fluorometry data.
-# Filename format must match: "SP_FL_YYMMDD_HHMMSS.txt" and reflect data start time.
-# Sampling rate is in units: n/second.
+# Fluorometry data file. Must be a .txt file containing fluorometry data
+# Filename format must match: "SP_FL_YYMMDD_HHMMSS.txt" and reflect data start time
+# Sampling rate is in units: n/second
 
 fluorFile <- "SP_FL_240509_173128.txt"
 samplingRate <- 10

@@ -21,7 +21,7 @@ positionFile <- "SP_GPS_240509.cap"
 # Sampling rate is in units: n/second
 
 fluorFile <- "SP_FL_240509_173128.txt"
-samplingRate <- 10
+samplingRate <- 9
 
 ############################################################################################################
 ############################################################################################################
@@ -45,32 +45,27 @@ fix_duplicate <- function(time) {
 }
 
 # Read and clean ship's position data file
-
 fileRead <- read.csv(paste(dir, positionFile, sep = "/"),
                      header = FALSE,
                      colClasses = "character")
 
 dateRead <-fileRead %>%
   filter(V1 == "$GPZDA") %>%
-  select(c(2:5)) %>%
-  'colnames<-'(c("time", "day", "month", "year")) %>%
-  mutate(time = str_remove(time, pattern = "\\..*")) %>%
+  transmute(time = str_remove(V2, pattern = "\\..*"),
+            day = V3,
+            month = V4,
+            year = V5) %>% 
   mutate(time = case_when(
     time == lag(time) ~ fix_duplicate(time),
     .default = time))
 
 posRead <- fileRead %>%
   filter(V1 == "$GPGGA") %>%
-  select(c(2, 3, 5)) %>%
-  'colnames<-'(c("time", "lat.raw", "long.raw")) %>%
-  mutate(time = str_remove(time, pattern = "\\..*")) %>%
-  mutate(lat.deg = as.numeric(substr(lat.raw, 1, 2))) %>%
-  mutate(lat.min = (1/60) * as.numeric(substr(lat.raw, 3, nchar(lat.raw)))) %>%
-  mutate(lat = lat.deg + lat.min)%>%
-  mutate(long.deg = as.numeric(substr(long.raw, 1,3))) %>%
-  mutate(long.min = (1/60) * as.numeric(substr(long.raw, 4, nchar(long.raw)))) %>%
-  mutate(long = -1 * (long.deg + long.min)) %>%
-  select(c("time", "lat", "long"))
+  transmute(time = str_remove(V2, pattern = "\\..*"),
+            lat = (as.numeric(substr(V3, 1, 2)) + 
+                     as.numeric(substr(V3, 3, nchar(V3)))/60),
+            long = -1 * (as.numeric(substr(V5, 1,3)) +
+                           as.numeric(substr(V5, 4, nchar(V5)))/60))
 
 posData <- right_join(dateRead, posRead) %>%
   mutate(time = as.POSIXct(paste(time, day, month, year),
@@ -83,9 +78,12 @@ startTime <- paste(substr(fluorFile, 7, 12),
   as.POSIXct(format = "%y%m%d %H%M%S", tz = "GMT")
 
 fluorData <- read.table(paste(dir, fluorFile, sep = "/"),
-                      col.names = "fluor") %>%
-  mutate(time = seq(from = startTime, length.out = length(.$fluor), by = 1/samplingRate)) %>%
-  mutate(time = trunc(time, "secs") %>% as.POSIXct) %>%
+                        col.names = "fluor") %>%
+  mutate(time = seq(from = startTime,
+                    length.out = length(.$fluor), 
+                    by = 1/samplingRate) %>%
+           trunc("secs") %>% 
+           as.POSIXct) %>% 
   group_by(time) %>%
   summarize(fluor = mean(fluor)) %>%
   mutate(fluor = round(fluor, 0))

@@ -36,17 +36,28 @@ library(tidyverse)
 # Get working directory to locate files
 dir <- getwd()
 
+# Fix duplicate GPS entries
+fix_duplicate <- function(time) {
+  truncate <- str_remove(time, pattern = "\\..*")
+  convert <- as.POSIXct(truncate, format = "%H%M%S") + 1
+  return <- as.character(convert, format = "%H%M%S")
+  return(return)
+}
+
 # Read and clean ship's position data file
 
 fileRead <- read.csv(paste(dir, positionFile, sep = "/"),
                      header = FALSE,
                      colClasses = "character")
 
-dateRead <- fileRead %>%
+dateRead <-fileRead %>%
   filter(V1 == "$GPZDA") %>%
   select(c(2:5)) %>%
   'colnames<-'(c("time", "day", "month", "year")) %>%
-  mutate(time = str_remove(time, pattern = "\\..*"))
+  mutate(time = str_remove(time, pattern = "\\..*")) %>%
+  mutate(time = case_when(
+    time == lag(time) ~ fix_duplicate(time),
+    .default = time))
 
 posRead <- fileRead %>%
   filter(V1 == "$GPGGA") %>%
@@ -60,8 +71,8 @@ posRead <- fileRead %>%
   mutate(long.min = (1/60) * as.numeric(substr(long.raw, 4, nchar(long.raw)))) %>%
   mutate(long = -1 * (long.deg + long.min)) %>%
   select(c("time", "lat", "long"))
- 
-posData <- left_join(dateRead, posRead) %>%
+
+posData <- right_join(dateRead, posRead) %>%
   mutate(time = as.POSIXct(paste(time, day, month, year),
                            format = "%H%M%S %d %m %Y",
                            tz = "GMT"))
@@ -80,14 +91,13 @@ fluorData <- read.table(paste(dir, fluorFile, sep = "/"),
   mutate(fluor = round(fluor, 0))
 
 # Join data structures by time
-fluorData <- left_join(posData, fluorData) %>%
+fluorData <- merge(posData, fluorData, all = TRUE) %>%
   mutate(time = format(time, "%H:%M:%S")) %>%
   unite(date, year, month, day, sep = "-", remove= TRUE) %>%
   select(c(date, time, fluor, lat, long)) %>%
-  slice(which(!is.na(.$fluor)) %>% 
-      c(first(.):last(.)))
+  slice(which(!is.na(.$fluor) %>% 
+          c(first(.):last(.))))
   
-
 # Write to txt file
 write.table(fluorData, 
             file = paste0(fluorFile%>% substr(1,19),
